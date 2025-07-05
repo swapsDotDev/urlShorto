@@ -94,15 +94,20 @@ def test_anonymous_url_creation(client):
     response = client.post('/', data={
         'long_url': 'https://example.com'
     })
-    assert response.status_code == 200
-    assert b'Your short URL:' in response.data
+    assert response.status_code == 302  # Expect redirect after successful creation
+    # Check that the flash message contains the short URL
+    follow_response = client.get('/')
+    assert b'Your short URL:' in follow_response.data
 
 def test_anonymous_url_creation_invalid_url(client):
     """Test anonymous URL creation with invalid URL."""
     response = client.post('/', data={
         'long_url': 'not-a-valid-url'
     })
-    assert response.status_code == 200
+    assert response.status_code == 302  # Now expect redirect
+    # Optionally, check the flash message
+    follow_response = client.get('/')
+    assert b'Invalid URL' in follow_response.data or b'not-a-valid-url' in follow_response.data
 
 def test_register_page(client):
     """Test registration page loads."""
@@ -180,11 +185,22 @@ def test_logout(auth_client):
 
 def test_custom_url_creation_authenticated(auth_client):
     """Test authenticated users can create custom URLs."""
+    # Clean up any existing custom code
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM urls WHERE short_code = %s", ('mycustom',))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
     response = auth_client.post('/', data={
         'long_url': 'https://example.com',
         'custom_code': 'mycustom'
     })
     assert response.status_code == 302  # Expect redirect
+    # Check that the flash message contains the short URL
+    follow_response = auth_client.get('/')
+    assert b'Your short URL:' in follow_response.data
 
 def test_custom_url_creation_duplicate(auth_client):
     """Test custom URL creation with duplicate code."""
@@ -202,21 +218,38 @@ def test_custom_url_creation_duplicate(auth_client):
 
 def test_custom_url_creation_anonymous(client):
     """Test anonymous users cannot create custom URLs."""
+    # Clean up any existing custom code
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM urls WHERE short_code = %s", ('anonymous',))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
     response = client.post('/', data={
         'long_url': 'https://example.com',
         'custom_code': 'anonymous'
     })
     assert response.status_code == 302  # Expect redirect
+    # Check that the flash message contains the short URL
+    follow_response = client.get('/')
+    assert b'Your short URL:' in follow_response.data
 
 def test_url_redirection(client):
     """Test short URL redirects to original URL."""
     response = client.post('/', data={
         'long_url': 'https://httpbin.org/status/200'
     })
-    
-    short_url = response.data.decode().split('Your short URL: <a href="')[1].split('"')[0]
+    assert response.status_code == 302
+    # Follow the redirect to get the flash message
+    follow_response = client.get('/')
+    flash_content = follow_response.data.decode()
+    # Extract short URL from flash message
+    import re
+    match = re.search(r'Your short URL: (https?://[^\s!<]+)', flash_content)
+    assert match, "Short URL not found in flash message"
+    short_url = match.group(1)
     short_code = short_url.split('/')[-1]
-    
     redirect_response = client.get(f'/{short_code}')
     assert redirect_response.status_code == 302
 

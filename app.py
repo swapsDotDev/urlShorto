@@ -4,6 +4,7 @@ import string
 import random
 import os
 from dotenv import load_dotenv
+import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -88,6 +89,12 @@ def index():
     if request.method == 'POST':
         long_url = request.form['long_url']
         custom_code = request.form.get('custom_code')
+        user = session.get('username')
+
+        # Add URL validation
+        if not re.match(r'^https?://', long_url):
+            flash('Invalid URL')
+            return redirect('/')
 
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
@@ -103,7 +110,8 @@ def index():
                 (long_url, code, session.get('username'))
             )
             conn.commit()
-            return render_template('index.html', short_url=request.host_url + code)
+            flash(f'URL shortened successfully! Your short URL: {request.host_url + code}')
+            return redirect('/')
         except mysql.connector.IntegrityError:
             flash('Custom code already taken.')
             return redirect('/')
