@@ -21,9 +21,7 @@ def test_database():
         cursor = conn.cursor()
         
         cursor.execute("SHOW TABLES LIKE 'users'")
-        if not cursor.fetchone():
-            print("❌ Users table not found. Run the app first to create it.")
-            return False
+        assert cursor.fetchone() is not None, "Users table not found. Run the app first to create it."
         
         print("✅ Users table found")
         
@@ -40,11 +38,8 @@ def test_database():
         cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", 
                       (test_username, test_password))
         user = cursor.fetchone()
-        if user:
-            print("✅ User authentication test passed")
-        else:
-            print("❌ User authentication test failed")
-            return False
+        assert user is not None, "User authentication test failed"
+        print("✅ User authentication test passed")
         
         cursor.execute("DELETE FROM users WHERE username = %s", (test_username,))
         conn.commit()
@@ -52,7 +47,6 @@ def test_database():
         
         cursor.close()
         conn.close()
-        return True
         
     except mysql.connector.Error as err:
         print(f"❌ MySQL connection failed: {err}")
@@ -60,13 +54,13 @@ def test_database():
         print("1. Make sure XAMPP MySQL is running")
         print("2. Check your .env file configuration")
         print("3. Verify database 'urlshortener' exists")
-        return False
+        raise
     except ImportError:
         print("❌ mysql-connector-python not installed. Run: pip install mysql-connector-python")
-        return False
+        raise
     except Exception as e:
         print(f"❌ Database test failed: {e}")
-        return False
+        raise
 
 def test_url_operations():
     """Test URL table operations"""
@@ -84,9 +78,7 @@ def test_url_operations():
         cursor = conn.cursor()
         
         cursor.execute("SHOW TABLES LIKE 'urls'")
-        if not cursor.fetchone():
-            print("❌ URLs table not found. Run the app first to create it.")
-            return False
+        assert cursor.fetchone() is not None, "URLs table not found. Run the app first to create it."
         
         print("✅ URLs table found")
         
@@ -102,11 +94,8 @@ def test_url_operations():
         
         cursor.execute("SELECT long_url FROM urls WHERE short_code = %s", (test_short_code,))
         url = cursor.fetchone()
-        if url and url[0] == test_long_url:
-            print("✅ URL redirection test passed")
-        else:
-            print("❌ URL redirection test failed")
-            return False
+        assert url is not None and url[0] == test_long_url, "URL redirection test failed"
+        print("✅ URL redirection test passed")
         
         cursor.execute("DELETE FROM urls WHERE short_code = %s", (test_short_code,))
         conn.commit()
@@ -114,23 +103,22 @@ def test_url_operations():
         
         cursor.close()
         conn.close()
-        return True
         
     except Exception as e:
         print(f"❌ URL operations test failed: {e}")
-        return False
+        raise
 
 if __name__ == "__main__":
     print("Testing MySQL authentication and URL functionality...")
     print("=" * 50)
     
-    auth_success = test_database()
-    
-    url_success = test_url_operations()
-    
-    if auth_success and url_success:
+    try:
+        test_database()
+        
+        test_url_operations()
+        
         print("\n🎉 All tests passed! MySQL integration is working correctly.")
         print("💡 You can now run: python app.py")
-    else:
-        print("\n💥 Some tests failed. Check the issues above.")
+    except Exception as e:
+        print(f"\n💥 Some tests failed: {e}")
         print("🔧 Make sure XAMPP MySQL is running and .env file is configured.") 
